@@ -41,9 +41,9 @@ We deploy the Python FastAPI backend to [Render.com](https://render.com) as a We
    * **Name**: `workhive-backend`
    * **Language**: `Python`
    * **Root Directory**: `WorkHive-Backend`
-   * **Build Command**: `pip install -r requirements.txt && alembic upgrade head`
+   * **Build Command**: `pip install -r requirements.txt && alembic upgrade head && python seed_admin.py`
      > [!NOTE]
-     > Appending `&& alembic upgrade head` to the build command automatically runs your database schema migrations on every deployment.
+     > Appending `&& alembic upgrade head && python seed_admin.py` to the build command automatically runs database schema migrations and seeds the default administrator account on every deployment.
    * **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
 4. Click **Advanced** and add the following **Environment Variables**:
@@ -67,17 +67,17 @@ We deploy the Python FastAPI backend to [Render.com](https://render.com) as a We
 
 ---
 
-## 📂 Phase 3: Seeding the Admin User
+## 📂 Phase 3: Default Admin Credentials
 
-After the backend is deployed successfully and tables are created, you must seed a default Workspace Admin account to approve employee registration requests.
+Because you are using **Render's Free Instance Plan**, Web Shell access is disabled. The default admin has been automatically created during the build phase (`python seed_admin.py`).
 
-1. Go to your Render Web Service dashboard.
-2. Select the **Shell** tab in the sidebar menu.
-3. Run the following command inside the shell environment:
-   ```bash
-   python seed_admin.py
-   ```
-4. Copy the output admin credentials (email and auto-generated temporary password) printed in the console.
+You can log in directly using the following credentials:
+* **Admin Email**: `admin@workhive.com`
+* **Admin Password**: `admin123`
+
+> [!WARNING]
+> For security reasons, please change this default password immediately after your first successful login!
+
 
 ---
 
