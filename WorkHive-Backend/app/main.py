@@ -21,10 +21,14 @@ app = FastAPI(
 )
 
 # CORS — allow the configured frontend URL (Vercel in production, localhost in dev)
+frontend_url = settings.FRONTEND_URL.strip().rstrip("/")
 origins = [
     "http://localhost:5173",
-    settings.FRONTEND_URL,
+    frontend_url,
 ]
+
+# Print CORS origins to console for debugging
+print(f"CORS Allowed Origins: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
