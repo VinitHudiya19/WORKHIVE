@@ -6,9 +6,9 @@ from typing import Optional, List
 from datetime import datetime
 from app.core.database import get_db
 from app.models.project import Project, ProjectStatus
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.api.auth import get_current_user, require_role
-from app.models.user import UserRole
+from app.models.task import Task
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
