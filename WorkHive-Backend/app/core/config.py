@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: str = "noreply@workhive.com"
     RESEND_API_KEY: Optional[str] = None
+    SENDGRID_API_KEY: Optional[str] = None
+    BREVO_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
