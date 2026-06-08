@@ -417,6 +417,7 @@ async def create_task(
 
     # Create task assignees
     from app.models.notification import Notification
+    from app.core.email import send_email
     for uid in valid_assignee_ids:
         db.add(TaskAssignee(task_id=new_task.id, user_id=uid))
         
@@ -431,6 +432,20 @@ async def create_task(
                 },
                 is_read=False
             ))
+            
+            # Send email notification to assignee
+            assigned_user = db.query(User).filter(User.id == uid).first()
+            if assigned_user and assigned_user.email:
+                subject = f"New Task Assigned: {new_task.title}"
+                body = f"""
+                <p>Hello <strong>{assigned_user.full_name}</strong>,</p>
+                <p>You have been assigned a new task <strong>"{new_task.title}"</strong> by {current_user.full_name}.</p>
+                <p><strong>Priority:</strong> {new_task.priority.value.capitalize()}</p>
+                <p><strong>Due Date:</strong> {new_task.due_date.strftime('%d-%b-%Y') if new_task.due_date else 'No due date'}</p>
+                <p>You can view and update the task on your dashboard or project board.</p>
+                <p>Best regards,<br>The WorkHive Team</p>
+                """
+                send_email(assigned_user.email, subject, body)
             
     db.commit()
 
@@ -714,6 +729,7 @@ async def update_task(
 
         # Add new assignees and notify
         from app.models.notification import Notification
+        from app.core.email import send_email
         for uid in new_uids_set:
             if uid not in existing_uids:
                 db.add(TaskAssignee(task_id=task.id, user_id=uid))
@@ -727,6 +743,20 @@ async def update_task(
                         },
                         is_read=False
                     ))
+                    
+                    # Send email notification to new assignee
+                    assigned_user = db.query(User).filter(User.id == uid).first()
+                    if assigned_user and assigned_user.email:
+                        subject = f"New Task Assigned: {task.title}"
+                        body = f"""
+                        <p>Hello <strong>{assigned_user.full_name}</strong>,</p>
+                        <p>You have been assigned a new task <strong>"{task.title}"</strong> by {current_user.full_name}.</p>
+                        <p><strong>Priority:</strong> {task.priority.value.capitalize()}</p>
+                        <p><strong>Due Date:</strong> {task.due_date.strftime('%d-%b-%Y') if task.due_date else 'No due date'}</p>
+                        <p>You can view and update the task on your dashboard or project board.</p>
+                        <p>Best regards,<br>The WorkHive Team</p>
+                        """
+                        send_email(assigned_user.email, subject, body)
 
         # Backward compatibility assigned_to
         task.assigned_to = valid_assignee_ids[0] if valid_assignee_ids else None
