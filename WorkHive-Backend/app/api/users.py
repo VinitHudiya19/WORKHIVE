@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 import uuid
 from pydantic import BaseModel, EmailStr
@@ -194,6 +194,7 @@ async def update_user(
 async def approve_user(
     user_id: uuid.UUID,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
@@ -227,7 +228,7 @@ async def approve_user(
     <p>Login URL: <a href="{settings.FRONTEND_URL}">{settings.FRONTEND_URL}</a></p>
     <p>Best regards,<br>The WorkHive Team</p>
     """
-    send_email(user.email, subject, body)
+    background_tasks.add_task(send_email, user.email, subject, body)
     
     return {"message": "User approved successfully"}
 
@@ -236,6 +237,7 @@ async def approve_user(
 async def reject_user(
     user_id: uuid.UUID,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
@@ -269,7 +271,7 @@ async def reject_user(
     <p>If you believe this was an error, please contact your workspace administrator.</p>
     <p>Best regards,<br>The WorkHive Team</p>
     """
-    send_email(user.email, subject, body)
+    background_tasks.add_task(send_email, user.email, subject, body)
     
     return {"message": "User registration request rejected"}
 

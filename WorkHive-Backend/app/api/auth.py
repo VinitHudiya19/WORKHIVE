@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, field_validator
@@ -144,7 +144,7 @@ def _build_user_dict(user: User) -> dict:
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=UserResponse)
-async def register(request: Request, user_data: UserRegister, db: Session = Depends(get_db)):
+async def register(request: Request, user_data: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(
@@ -189,7 +189,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
     <p>You will receive an email confirmation once your account has been validated by an admin.</p>
     <p>Best regards,<br>The WorkHive Team</p>
     """
-    send_email(new_user.email, user_subject, user_body)
+    background_tasks.add_task(send_email, new_user.email, user_subject, user_body)
 
     # Send alert email to admins
     admin_subject = f"New Account Validation Pending: {new_user.full_name}"
@@ -219,7 +219,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
             is_read=False
         ))
         # Send mail
-        send_email(admin.email, admin_subject, admin_body)
+        background_tasks.add_task(send_email, admin.email, admin_subject, admin_body)
     
     db.commit()
 

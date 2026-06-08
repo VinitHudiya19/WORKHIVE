@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 import uuid
 from sqlalchemy import func, or_
@@ -338,6 +338,7 @@ async def get_workload(
 async def create_task(
     task: TaskCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -383,8 +384,17 @@ async def create_task(
     # Validate and build list of valid assignee IDs
     valid_assignee_ids = []
     for uid in assignee_ids:
+        if not uid:
+            continue
+        try:
+            user_uuid = uuid.UUID(uid)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid assignee user ID format: {uid}"
+            )
         assigned_user = db.query(User).filter(
-            User.id == uuid.UUID(uid),
+            User.id == user_uuid,
             User.organisation_id == current_user.organisation_id,
             User.is_active == True
         ).first()
@@ -397,8 +407,17 @@ async def create_task(
 
     first_assignee_id = valid_assignee_ids[0] if valid_assignee_ids else None
 
+    # Handle project_id format parsing safely
+    try:
+        proj_id = uuid.UUID(task.project_id) if isinstance(task.project_id, str) else task.project_id
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid project ID format: {task.project_id}"
+        )
+
     new_task = Task(
-        project_id=uuid.UUID(task.project_id) if isinstance(task.project_id, str) else task.project_id,
+        project_id=proj_id,
         title=task.title,
         description=task.description,
         status=TaskStatus.TODO,
@@ -437,15 +456,21 @@ async def create_task(
             assigned_user = db.query(User).filter(User.id == uid).first()
             if assigned_user and assigned_user.email:
                 subject = f"New Task Assigned: {new_task.title}"
+                due_date_str = "No due date"
+                if new_task.due_date:
+                    if hasattr(new_task.due_date, 'strftime'):
+                        due_date_str = new_task.due_date.strftime('%d-%b-%Y')
+                    else:
+                        due_date_str = str(new_task.due_date)
                 body = f"""
                 <p>Hello <strong>{assigned_user.full_name}</strong>,</p>
                 <p>You have been assigned a new task <strong>"{new_task.title}"</strong> by {current_user.full_name}.</p>
                 <p><strong>Priority:</strong> {new_task.priority.value.capitalize()}</p>
-                <p><strong>Due Date:</strong> {new_task.due_date.strftime('%d-%b-%Y') if new_task.due_date else 'No due date'}</p>
+                <p><strong>Due Date:</strong> {due_date_str}</p>
                 <p>You can view and update the task on your dashboard or project board.</p>
                 <p>Best regards,<br>The WorkHive Team</p>
                 """
-                send_email(assigned_user.email, subject, body)
+                background_tasks.add_task(send_email, assigned_user.email, subject, body)
             
     db.commit()
 
@@ -631,6 +656,7 @@ async def update_task(
     task_id: uuid.UUID,
     task_update: TaskUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -705,8 +731,17 @@ async def update_task(
 
         valid_assignee_ids = []
         for uid in new_assignee_ids:
+            if not uid:
+                continue
+            try:
+                user_uuid = uuid.UUID(uid)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid assignee user ID format: {uid}"
+                )
             assigned_user = db.query(User).filter(
-                User.id == uuid.UUID(uid),
+                User.id == user_uuid,
                 User.organisation_id == current_user.organisation_id,
                 User.is_active == True
             ).first()
@@ -748,15 +783,21 @@ async def update_task(
                     assigned_user = db.query(User).filter(User.id == uid).first()
                     if assigned_user and assigned_user.email:
                         subject = f"New Task Assigned: {task.title}"
+                        due_date_str = "No due date"
+                        if task.due_date:
+                            if hasattr(task.due_date, 'strftime'):
+                                due_date_str = task.due_date.strftime('%d-%b-%Y')
+                            else:
+                                due_date_str = str(task.due_date)
                         body = f"""
                         <p>Hello <strong>{assigned_user.full_name}</strong>,</p>
                         <p>You have been assigned a new task <strong>"{task.title}"</strong> by {current_user.full_name}.</p>
                         <p><strong>Priority:</strong> {task.priority.value.capitalize()}</p>
-                        <p><strong>Due Date:</strong> {task.due_date.strftime('%d-%b-%Y') if task.due_date else 'No due date'}</p>
+                        <p><strong>Due Date:</strong> {due_date_str}</p>
                         <p>You can view and update the task on your dashboard or project board.</p>
                         <p>Best regards,<br>The WorkHive Team</p>
                         """
-                        send_email(assigned_user.email, subject, body)
+                        background_tasks.add_task(send_email, assigned_user.email, subject, body)
 
         # Backward compatibility assigned_to
         task.assigned_to = valid_assignee_ids[0] if valid_assignee_ids else None
