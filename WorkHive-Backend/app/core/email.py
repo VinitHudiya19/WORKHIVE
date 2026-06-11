@@ -20,94 +20,133 @@ def send_email(to_email: str, subject: str, body: str):
 
     # 1. Try Resend API (HTTP-based, bypasses Render port blocking)
     if getattr(settings, "RESEND_API_KEY", None):
-        import httpx
+        import urllib.request
+        import urllib.error
+        import json
         try:
             resend_sender = sender
             if not resend_sender or resend_sender == "noreply@workhive.com":
                 resend_sender = "WorkHive <onboarding@resend.dev>"
             
-            response = httpx.post(
+            req_data = json.dumps({
+                "from": resend_sender,
+                "to": [to_email],
+                "subject": subject,
+                "html": body
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(
                 "https://api.resend.com/emails",
+                data=req_data,
                 headers={
                     "Authorization": f"Bearer {settings.RESEND_API_KEY}",
                     "Content-Type": "application/json"
                 },
-                json={
-                    "from": resend_sender,
-                    "to": [to_email],
-                    "subject": subject,
-                    "html": body
-                },
-                timeout=10.0
+                method="POST"
             )
             
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Email sent successfully via Resend API to {to_email}")
-                print(f"[RESEND SUCCESS] Sent email to {to_email} | Subject: {subject}")
-                return
-            else:
-                logger.error(f"Failed to send email via Resend API: {response.status_code} - {response.text}")
-                print(f"[RESEND FAIL] Status: {response.status_code} | Error: {response.text}")
+            try:
+                with urllib.request.urlopen(req, timeout=10.0) as response:
+                    status_code = response.getcode()
+                    resp_body = response.read().decode("utf-8")
+                    if status_code in [200, 201, 202]:
+                        logger.info(f"Email sent successfully via Resend API to {to_email}")
+                        print(f"[RESEND SUCCESS] Sent email to {to_email} | Subject: {subject}")
+                        return
+                    else:
+                        logger.error(f"Failed to send email via Resend API: {status_code} - {resp_body}")
+                        print(f"[RESEND FAIL] Status: {status_code} | Error: {resp_body}")
+            except urllib.error.HTTPError as err:
+                status_code = err.code
+                resp_body = err.read().decode("utf-8")
+                logger.error(f"Failed to send email via Resend API: {status_code} - {resp_body}")
+                print(f"[RESEND FAIL] Status: {status_code} | Error: {resp_body}")
         except Exception as err:
             logger.error(f"Exception sending email via Resend API: {err}")
             print(f"[RESEND EXCEPTION] Error: {err}")
 
     # 2. Try SendGrid API (HTTP-based, bypasses Render port blocking, allows single sender verification)
     if getattr(settings, "SENDGRID_API_KEY", None):
-        import httpx
+        import urllib.request
+        import urllib.error
+        import json
         try:
-            response = httpx.post(
+            req_data = json.dumps({
+                "personalizations": [{"to": [{"email": to_email}]}],
+                "from": {"email": sender, "name": "WorkHive"},
+                "subject": subject,
+                "content": [{"type": "text/html", "value": body}]
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(
                 "https://api.sendgrid.com/v3/mail/send",
+                data=req_data,
                 headers={
                     "Authorization": f"Bearer {settings.SENDGRID_API_KEY}",
                     "Content-Type": "application/json"
                 },
-                json={
-                    "personalizations": [{"to": [{"email": to_email}]}],
-                    "from": {"email": sender, "name": "WorkHive"},
-                    "subject": subject,
-                    "content": [{"type": "text/html", "value": body}]
-                },
-                timeout=10.0
+                method="POST"
             )
             
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Email sent successfully via SendGrid API to {to_email}")
-                print(f"[SENDGRID SUCCESS] Sent email to {to_email} | Subject: {subject}")
-                return
-            else:
-                logger.error(f"Failed to send email via SendGrid API: {response.status_code} - {response.text}")
-                print(f"[SENDGRID FAIL] Status: {response.status_code} | Error: {response.text}")
+            try:
+                with urllib.request.urlopen(req, timeout=10.0) as response:
+                    status_code = response.getcode()
+                    resp_body = response.read().decode("utf-8")
+                    if status_code in [200, 201, 202]:
+                        logger.info(f"Email sent successfully via SendGrid API to {to_email}")
+                        print(f"[SENDGRID SUCCESS] Sent email to {to_email} | Subject: {subject}")
+                        return
+                    else:
+                        logger.error(f"Failed to send email via SendGrid API: {status_code} - {resp_body}")
+                        print(f"[SENDGRID FAIL] Status: {status_code} | Error: {resp_body}")
+            except urllib.error.HTTPError as err:
+                status_code = err.code
+                resp_body = err.read().decode("utf-8")
+                logger.error(f"Failed to send email via SendGrid API: {status_code} - {resp_body}")
+                print(f"[SENDGRID FAIL] Status: {status_code} | Error: {resp_body}")
         except Exception as err:
             logger.error(f"Exception sending email via SendGrid API: {err}")
             print(f"[SENDGRID EXCEPTION] Error: {err}")
 
     # 3. Try Brevo API (HTTP-based, bypasses Render port blocking, allows single sender verification)
     if getattr(settings, "BREVO_API_KEY", None):
-        import httpx
+        import urllib.request
+        import urllib.error
+        import json
         try:
-            response = httpx.post(
+            req_data = json.dumps({
+                "sender": {"name": "WorkHive", "email": sender},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": body
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(
                 "https://api.brevo.com/v3/smtp/email",
+                data=req_data,
                 headers={
                     "api-key": settings.BREVO_API_KEY,
                     "Content-Type": "application/json"
                 },
-                json={
-                    "sender": {"name": "WorkHive", "email": sender},
-                    "to": [{"email": to_email}],
-                    "subject": subject,
-                    "htmlContent": body
-                },
-                timeout=10.0
+                method="POST"
             )
             
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Email sent successfully via Brevo API to {to_email}")
-                print(f"[BREVO SUCCESS] Sent email to {to_email} | Subject: {subject}")
-                return
-            else:
-                logger.error(f"Failed to send email via Brevo API: {response.status_code} - {response.text}")
-                print(f"[BREVO FAIL] Status: {response.status_code} | Error: {response.text}")
+            try:
+                with urllib.request.urlopen(req, timeout=10.0) as response:
+                    status_code = response.getcode()
+                    resp_body = response.read().decode("utf-8")
+                    if status_code in [200, 201, 202]:
+                        logger.info(f"Email sent successfully via Brevo API to {to_email}")
+                        print(f"[BREVO SUCCESS] Sent email to {to_email} | Subject: {subject}")
+                        return
+                    else:
+                        logger.error(f"Failed to send email via Brevo API: {status_code} - {resp_body}")
+                        print(f"[BREVO FAIL] Status: {status_code} | Error: {resp_body}")
+            except urllib.error.HTTPError as err:
+                status_code = err.code
+                resp_body = err.read().decode("utf-8")
+                logger.error(f"Failed to send email via Brevo API: {status_code} - {resp_body}")
+                print(f"[BREVO FAIL] Status: {status_code} | Error: {resp_body}")
         except Exception as err:
             logger.error(f"Exception sending email via Brevo API: {err}")
             print(f"[BREVO EXCEPTION] Error: {err}")
